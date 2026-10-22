@@ -1,0 +1,33 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600' # keep SSE alive
+    nginx.ingress.kubernetes.io/proxy-buffering: 'off'
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-server
+                port: { number: {{ .Values.server.port }} }
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: {{ .Release.Name }}-server
+                port: { number: {{ .Values.server.port }} }
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-portal
+                port: { number: {{ .Values.portal.port }} }
+{{- end }}

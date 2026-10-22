@@ -1,0 +1,17 @@
+{
+  "id": "unit/math",
+  "name": "Math unit suite",
+  "engine": "generic-node",
+  "execution": {
+    "command": ["node", "{{testFile}}"],
+    "junitPath": "results/junit.xml",
+    "timeoutSeconds": 120
+  },
+  "tags": ["unit", "smoke"],
+  "team": "platform",
+  "criticality": 2,
+  "category": "unit",
+  "environments": ["dev", "staging", "prod"],
+  "owner": "platform@example.com",
+  "flaky": false
+}

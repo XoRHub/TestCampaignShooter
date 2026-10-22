@@ -1,0 +1,58 @@
+# testcampaignshooter — GitLab CI, modeled on .github/workflows/*.yml.
+#
+# Same shape as the GitHub pipeline: per-domain jobs (node/helm/security/
+# images) gated by path `rules:changes` on MRs, always-on on pushes to
+# main (build-all invariant — a release needs the full image/chart set at
+# any taggable SHA), a blocking security gate on every pipeline regardless
+# of what changed, and a release stage.
+#
+# One real difference from the GitHub version: release-please only talks
+# to the GitHub API, so it has no place here. Releases are handled by
+# semantic-release + @semantic-release/gitlab instead (see
+# .gitlab/ci/release.yml and .releaserc.json) — mechanically different
+# (a release lands directly on merge, no staged "release PR" to review
+# first) but same end goal: a SemVer tag + GitLab Release from Conventional
+# Commits. Because semantic-release computes one version per config, the
+# app and the Helm chart share a single unified version here, instead of
+# the two independent SemVer tracks release-please's manifest mode gave
+# them on GitHub.
+#
+# Note: `rules:changes:` path lists are duplicated (not shared via YAML
+# anchor) across the included files below — anchors don't resolve across
+# separate `include:local:` files, only within the one they're defined in.
+#
+# Requires (project settings, not expressible in YAML): "Auto-cancel
+# redundant, pending pipelines" enabled if you want the same
+# cancel-in-progress-on-MR behavior the GitHub side gets from its
+# `concurrency:` block. Image builds (.gitlab/ci/images.yml) use Kaniko,
+# not `docker build`/dind — no privileged runner needed, but see that
+# file's header for the resulting arm64-only trade-off on this project's
+# (Raspberry Pi) runner fleet.
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+default:
+  interruptible: true
+
+variables:
+  IMAGE_SERVER: $CI_REGISTRY_IMAGE/server
+  IMAGE_PORTAL: $CI_REGISTRY_IMAGE/portal
+  # `helm push` appends `/<chart-name>:<version>` itself — this is the
+  # repo prefix, not the chart's own OCI ref.
+  CHART_IMAGE: $CI_REGISTRY_IMAGE/charts
+
+stages:
+  - quality
+  - build
+  - scan
+  - release
+
+include:
+  - local: '.gitlab/ci/node.yml'
+  - local: '.gitlab/ci/helm.yml'
+  - local: '.gitlab/ci/security.yml'
+  - local: '.gitlab/ci/images.yml'
+  - local: '.gitlab/ci/release.yml'

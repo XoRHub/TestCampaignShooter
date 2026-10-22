@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.next/
+coverage/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+.DS_Store
+Thumbs.db
+.tcs-workspaces/
+apps/server/prisma/dev.db
+/cmd
+junit-report.xml
+junit-report-integration.xml
+# Local dry-run artifacts of the `gitlab-ci-local` tool (not part of the pipeline)
+.gitlab-ci-local/

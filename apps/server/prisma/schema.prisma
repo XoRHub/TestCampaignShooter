@@ -1,0 +1,181 @@
+// TestCampaignShooter persistence model.
+// JSON payloads (selection rules, test snapshots, handles) are stored as
+// serialized strings so the schema stays portable across connectors.
+
+generator client {
+  provider      = "prisma-client-js"
+  // "native" = plateforme courante (Windows) ; la cible debian couvre
+  // l'exécution du même checkout depuis WSL Ubuntu 22.04 (OpenSSL 3).
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  displayName  String
+  passwordHash String?
+  /// JSON array of roles: ["viewer"|"editor"|"admin"]
+  roles        String   @default("[\"viewer\"]")
+  /// "local" | "oidc"
+  authSource   String   @default("local")
+  oidcSubject  String?  @unique
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  campaigns             Campaign[]        @relation("CampaignCreator")
+  runs                  WorkflowRun[]     @relation("RunTrigger")
+  adapterManifestsAdded AdapterManifest[] @relation("AdapterManifestAdder")
+  projectsCreated       Project[]         @relation("ProjectCreator")
+  projectMemberships    ProjectMember[]
+}
+
+model Campaign {
+  id                 String    @id @default(cuid())
+  name               String
+  description        String?
+  /// JSON SelectionRule (nested and/or/not tree)
+  selectionRule      String
+  /// JSON TestsSource ({type:"git",url,...} | {type:"local",path})
+  source             String
+  parallelism        Int       @default(5)
+  /// Cron expression (5 or 6 fields) for automatic scheduled launches.
+  scheduleCron       String?
+  scheduleEnabled    Boolean   @default(false)
+  /// Incremented on every update; runs record the version they executed.
+  version            Int       @default(1)
+  createdById        String
+  createdBy          User      @relation("CampaignCreator", fields: [createdById], references: [id])
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  /// Soft delete: campaigns with runs are never hard-deleted (audit/history).
+  deletedAt          DateTime?
+  /// Manifest URL overriding/adding engine adapters for this campaign's runs
+  /// only (see docs/adapter-plugins.md) — admin-only field (can run arbitrary
+  /// commands via the `local` process runtime).
+  adapterManifestUrl String?
+  /// Optional project this campaign belongs to (see docs/functional.md —
+  /// projects, API/portal only). No project = visible to any viewer, same
+  /// as before this field existed.
+  projectId          String?
+  project            Project?  @relation(fields: [projectId], references: [id])
+
+  runs WorkflowRun[]
+}
+
+model WorkflowRun {
+  id                  String    @id @default(cuid())
+  campaignId          String
+  campaign            Campaign  @relation(fields: [campaignId], references: [id])
+  campaignVersion     Int
+  /// RunPhase: pending|running|succeeded|failed|cancelled|error
+  status              String    @default("pending")
+  /// JSON TestExecutionSnapshot[] — the exact tests selected at launch time.
+  testsSnapshot       String
+  /// JSON RunHandle from the orchestration provider.
+  handle              String?
+  provider            String
+  parallelism         Int
+  triggeredById       String
+  triggeredBy         User      @relation("RunTrigger", fields: [triggeredById], references: [id])
+  createdAt           DateTime  @default(now())
+  startedAt           DateTime?
+  finishedAt          DateTime?
+  /// S3 key of the aggregated JUnit report.
+  junitKey            String?
+  /// Campaign's adapterManifestUrl resolved once at launch time — frozen
+  /// here for audit even if the campaign's field changes later.
+  adapterManifestUrl  String?
+  /// sha256 of the resolved manifest content at launch time.
+  adapterManifestHash String?
+
+  results   TestResult[]
+  artifacts Artifact[]
+
+  @@index([campaignId, createdAt])
+  @@index([status])
+}
+
+model TestResult {
+  id         String      @id @default(cuid())
+  runId      String
+  run        WorkflowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  testId     String
+  name       String
+  engine     String
+  /// passed | failed | error | skipped
+  outcome    String
+  durationMs Int         @default(0)
+  message    String?
+  createdAt  DateTime    @default(now())
+
+  @@unique([runId, testId])
+  @@index([testId, createdAt])
+  @@index([outcome])
+}
+
+model Artifact {
+  id          String      @id @default(cuid())
+  runId       String
+  run         WorkflowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  name        String
+  storageKey  String
+  contentType String?
+  createdAt   DateTime    @default(now())
+}
+
+/// Instance-level adapter manifest (admin-managed — see
+/// docs/adapter-plugins.md): fetched at boot and on admin-triggered reload,
+/// extends/overrides the built-in engine registry for the whole instance.
+model AdapterManifest {
+  id            String    @id @default(cuid())
+  url           String    @unique
+  enabled       Boolean   @default(true)
+  addedById     String
+  addedBy       User      @relation("AdapterManifestAdder", fields: [addedById], references: [id])
+  lastFetchedAt DateTime?
+  /// sha256 of the last successfully fetched manifest content.
+  lastHash      String?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+
+  @@index([enabled])
+}
+
+/// Groups campaigns and restricts their visibility to the creator and its
+/// members (API/portal only — see docs/functional.md). A campaign without a
+/// project is unaffected (visible to any viewer, as before this model
+/// existed).
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  createdById String
+  createdBy   User      @relation("ProjectCreator", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  /// Soft delete: projects with campaigns are never hard-deleted (audit/history).
+  deletedAt   DateTime?
+
+  members   ProjectMember[]
+  campaigns Campaign[]
+}
+
+/// A user granted access to a project beyond its creator (who always has
+/// full access). No extra role: membership is binary, mirroring the
+/// "creator has access to everything" rule.
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  addedAt   DateTime @default(now())
+
+  @@unique([projectId, userId])
+}

@@ -1,0 +1,78 @@
+# Dev environment: PostgreSQL + MinIO (artifact store) + Pushgateway
+# (dedicated business-metrics target) + the two TestCampaignShooter
+# components themselves (server + portal), built from their production
+# Dockerfiles ("iso-prod" dev — same images you'd deploy). For a full Argo
+# Workflows setup see deploy/kind/README.md.
+#
+# Quick start:
+#   docker compose up --build
+#   # portal: http://localhost:3000  (login admin@example.com / admin)
+#   # API:    http://localhost:4000
+#   # MinIO console: http://localhost:9001 (tcs / tcs-secret)
+#
+# Rebuild after a code change (these are NOT hot-reload dev images):
+#   docker compose up --build server portal
+#
+# For fast iteration with hot reload, prefer the host-based flow instead
+# (only postgres/minio/pushgateway need to run in Docker):
+#   docker compose up -d postgres minio pushgateway
+#   pnpm dev:server   # http://localhost:4000
+#   pnpm dev:portal   # http://localhost:3000
+
+include:
+  - docker-compose.yml
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - '4000:4000'
+    environment:
+      DATABASE_URL: postgresql://tcs:tcs@postgres:5432/tcs
+      # Reachable from wherever a test's results callback runs. With the
+      # default ORCHESTRATION_PROVIDER=local (below), that's this same
+      # container, so localhost works.
+      PUBLIC_BASE_URL: http://localhost:4000
+      PORTAL_ORIGIN: http://localhost:3000
+      SESSION_SECRET: change-me-32-chars-minimum-please!
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: admin
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: tcs
+      S3_SECRET_KEY: tcs-secret
+      S3_BUCKET: tcs-artifacts
+      BUSINESS_METRICS_ENABLED: 'true'
+      PUSHGATEWAY_URL: http://pushgateway:9091
+      # ORCHESTRATION_PROVIDER defaults to "local" (host-process runtime —
+      # apps/server/.env.example default), which here means INSIDE this
+      # container: fine for generic-node-style tests since the image only
+      # ships Node. For multi-engine iso-prod execution, set
+      # ORCHESTRATION_PROVIDER=docker, mount /var/run/docker.sock, add the
+      # docker CLI to apps/server/Dockerfile, and point
+      # LOCAL_PROVIDER_WORKSPACE_DIR at a path bind-mounted identically on
+      # the host and in this container — see docs/deployment.md §3.3.
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://localhost:4000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  portal:
+    build:
+      context: .
+      dockerfile: apps/portal/Dockerfile
+      args:
+        # Baked into the client bundle at build time — must be reachable
+        # from the *browser*, i.e. the host machine, not the compose network.
+        NEXT_PUBLIC_API_URL: http://localhost:4000
+    depends_on:
+      - server
+    ports:
+      - '3000:3000'

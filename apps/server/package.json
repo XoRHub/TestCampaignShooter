@@ -1,0 +1,41 @@
+{
+  "name": "@tcs/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "prisma generate && tsc --noEmit",
+    "build": "prisma generate && tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:diff": "prisma migrate diff --from-migrations ./prisma/migrations --to-schema-datamodel ./prisma/schema.prisma --shadow-database-url postgresql://tcs:tcs@localhost:5432/tcs_shadow --exit-code"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@aws-sdk/s3-request-presigner": "^3.700.0",
+    "@fastify/cookie": "^11.0.0",
+    "@fastify/cors": "^11.0.0",
+    "@prisma/client": "^6.10.0",
+    "@tcs/core": "workspace:*",
+    "@tcs/orchestration": "workspace:*",
+    "@tcs/orchestration-argo": "workspace:*",
+    "@tcs/shared-types": "workspace:*",
+    "bcryptjs": "^3.0.0",
+    "croner": "^9.0.0",
+    "dotenv": "^16.5.0",
+    "fastify": "^5.4.0",
+    "jose": "^6.0.0",
+    "openid-client": "^6.8.0",
+    "prom-client": "^15.1.0",
+    "tsx": "^4.20.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "prisma": "^6.10.0",
+    "typescript": "^5.8.0"
+  }
+}

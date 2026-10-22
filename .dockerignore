@@ -1,0 +1,21 @@
+# Both apps/server/Dockerfile and apps/portal/Dockerfile build with the repo
+# root as context — without this file, any node_modules/.next left over on
+# the host or CI runner (from a previous `pnpm install`/`pnpm build`) gets
+# copied straight into the image *before* `pnpm install --frozen-lockfile`
+# runs, which can leave stale/vulnerable transitive package versions in the
+# image regardless of how up to date pnpm-lock.yaml actually is.
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+dist/
+**/dist/
+coverage/
+**/coverage/
+.git/
+.gitlab-ci-local/
+.env
+.env.local
+.env.*.local
+*.log
+.pnpm-store/

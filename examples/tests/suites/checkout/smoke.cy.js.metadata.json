@@ -1,0 +1,18 @@
+{
+  "id": "checkout/smoke",
+  "name": "Checkout smoke",
+  "engine": "cypress",
+  "execution": {
+    "env": { "BASE_URL": "https://example.com" },
+    "timeoutSeconds": 600,
+    "resources": { "cpu": "500m", "memory": "1Gi" }
+  },
+  "tags": ["smoke", "checkout", "e2e"],
+  "team": "payments",
+  "criticality": 3,
+  "category": "e2e",
+  "platform": "chrome",
+  "environments": ["staging", "prod"],
+  "owner": "alice@example.com",
+  "flaky": false
+}

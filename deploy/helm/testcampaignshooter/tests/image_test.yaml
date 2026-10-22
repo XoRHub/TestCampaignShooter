@@ -1,0 +1,56 @@
+suite: image registry/tag/pullPolicy interpolation
+templates:
+  - server.yaml
+  - portal.yaml
+tests:
+  - it: server image uses default registry/tag/pullPolicy
+    template: server.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/OWNER/testcampaignshooter/server:latest
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent
+
+  - it: portal image uses default registry/tag/pullPolicy
+    template: portal.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/OWNER/testcampaignshooter/portal:latest
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent
+
+  - it: server image follows overridden registry/tag/pullPolicy
+    template: server.yaml
+    documentIndex: 0
+    set:
+      image.registry: ghcr.io/acme/tcs
+      image.tag: 1.2.3
+      image.pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/acme/tcs/server:1.2.3
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  - it: portal image follows overridden registry/tag/pullPolicy
+    template: portal.yaml
+    documentIndex: 0
+    set:
+      image.registry: ghcr.io/acme/tcs
+      image.tag: 1.2.3
+      image.pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/acme/tcs/portal:1.2.3
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always

@@ -1,0 +1,118 @@
+# Node/pnpm gates — called by ci.yml. `quality` is the existing
+# lint/typecheck/test/build pipeline, unchanged. `codegen` is new: a
+# Prisma migration-drift gate (see comment on that job). (`format:check`
+# exists in package.json but isn't wired in here — the repo doesn't
+# currently pass it; that's a separate cleanup, not part of this change.)
+
+name: ci-node
+
+on:
+  workflow_call: {}
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  # Prisma's client isn't committed to git (default node_modules/.prisma
+  # output — see schema.prisma), so a plain `git diff` drift check doesn't
+  # apply here the way it would for committed generated code. What CAN
+  # drift silently is prisma/migrations/ vs schema.prisma: editing the
+  # schema without `prisma migrate dev` passes `typecheck`/`build` (they
+  # only run `prisma generate` against whatever schema.prisma currently
+  # says) with zero warning, and only blows up later when
+  # `prisma migrate deploy` runs for real. This job replays every
+  # committed migration into an empty shadow database and fails if the
+  # result differs from schema.prisma.
+  codegen:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tcs
+          POSTGRES_PASSWORD: tcs
+          # Used only as the shadow DB target below; never queried as an
+          # "app" database in this job, so a single database is enough.
+          POSTGRES_DB: tcs_shadow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # schema.prisma's datasource references env("DATABASE_URL") — Prisma
+      # requires it to be set (and well-formed) to parse the schema at all,
+      # even though `validate`/`migrate diff --to-schema-datamodel` never
+      # actually connect to it.
+      DATABASE_URL: postgresql://tcs:tcs@localhost:5432/tcs_shadow
+      SHADOW_DATABASE_URL: postgresql://tcs:tcs@localhost:5432/tcs_shadow
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @tcs/server...
+      - run: pnpm --filter @tcs/server exec prisma validate
+      - name: Prisma migration drift check
+        working-directory: apps/server
+        run: |
+          pnpm exec prisma migrate diff \
+            --from-migrations ./prisma/migrations \
+            --to-schema-datamodel ./prisma/schema.prisma \
+            --shadow-database-url "$SHADOW_DATABASE_URL" \
+            --exit-code
+
+  # Route-level tests against a real Postgres (vitest.integration.config.ts,
+  # apps/server/test/) — CRUD + RBAC/project-access behavior end to end via
+  # Fastify's `.inject()`, as opposed to `quality`'s pure-logic unit tests.
+  # No MinIO service here: the current suite doesn't exercise the artifact
+  # store, and the app's best-effort `ensureBucket()` onReady hook just
+  # warns and moves on when S3 is unreachable — add one (a manual
+  # `docker run`, since Actions services can't override a container's
+  # command) if a future test needs it.
+  test-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tcs
+          POSTGRES_PASSWORD: tcs
+          POSTGRES_DB: tcs_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://tcs:tcs@localhost:5432/tcs_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:integration

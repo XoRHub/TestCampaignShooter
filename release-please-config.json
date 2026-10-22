@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "separate-pull-requests": true,
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "testcampaignshooter",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": ["deploy/helm/testcampaignshooter/Chart.yaml"]
+    },
+    "deploy/helm/testcampaignshooter": {
+      "release-type": "helm",
+      "package-name": "testcampaignshooter-chart",
+      "changelog-path": "deploy/helm/testcampaignshooter/CHANGELOG.md"
+    }
+  }
+}

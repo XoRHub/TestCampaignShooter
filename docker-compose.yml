@@ -1,0 +1,47 @@
+# Dev environment: PostgreSQL + MinIO (artifact store) + Pushgateway
+# (dedicated business-metrics target). For a full Argo Workflows setup see
+# deploy/kind/README.md.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tcs
+      POSTGRES_PASSWORD: tcs
+      POSTGRES_DB: tcs
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tcs']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: tcs
+      MINIO_ROOT_PASSWORD: tcs-secret
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Dedicated push target for business metrics (test results / campaigns),
+  # kept separate from the infra Prometheus that scrapes /metrics.
+  pushgateway:
+    image: prom/pushgateway:latest
+    ports:
+      - '9091:9091'
+
+volumes:
+  pgdata:
+  miniodata:

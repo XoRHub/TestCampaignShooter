@@ -1,0 +1,20 @@
+{{ template "chart.header" . }}
+{{ template "chart.deprecationWarning" . }}
+
+{{ template "chart.description" . }}
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+## Installing
+
+```bash
+helm install tcs deploy/helm/testcampaignshooter \
+  --namespace tcs --create-namespace \
+  --set image.registry=ghcr.io/OWNER/testcampaignshooter \
+  --set image.tag=<TAG>
+```
+
+See [docs/deployment.md](../../../docs/deployment.md) for the full
+per-provider (`local`/`docker`/`argo`) installation and configuration guide.
+
+{{ template "chart.valuesSection" . }}

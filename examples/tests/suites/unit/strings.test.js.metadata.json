@@ -1,0 +1,17 @@
+{
+  "id": "unit/strings",
+  "name": "Strings unit suite (intentionally failing)",
+  "engine": "generic-node",
+  "execution": {
+    "command": ["node", "{{testFile}}"],
+    "junitPath": "results/junit.xml",
+    "timeoutSeconds": 120
+  },
+  "tags": ["unit", "demo-fail"],
+  "team": "platform",
+  "criticality": 1,
+  "category": "unit",
+  "environments": ["dev"],
+  "owner": "platform@example.com",
+  "flaky": true
+}

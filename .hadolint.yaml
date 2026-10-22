@@ -1,0 +1,6 @@
+ignored:
+  # git/openssl/ca-certificates are deliberately installed unpinned in
+  # apps/server/Dockerfile: pinning them would fight the actual goal
+  # (always getting the latest CA bundle / OpenSSL security patches
+  # available in the node:22-slim base at build time).
+  - DL3008

@@ -1,0 +1,24 @@
+{
+  "name": "@tcs/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "tcs": "./bin/tcs.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tcs/core": "workspace:*",
+    "@tcs/orchestration": "workspace:*",
+    "@tcs/shared-types": "workspace:*",
+    "commander": "^13.1.0",
+    "tsx": "^4.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.0"
+  }
+}

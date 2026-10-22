@@ -1,0 +1,23 @@
+{
+  "name": "@tcs/orchestration-argo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kubernetes/client-node": "^1.3.0",
+    "@tcs/orchestration": "workspace:*",
+    "@tcs/shared-types": "workspace:*",
+    "yaml": "^2.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.0"
+  }
+}

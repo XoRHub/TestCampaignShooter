@@ -1,0 +1,38 @@
+# Helm chart gates — called by ci.yml: lint + render smoke test,
+# helm-docs drift check (README.md must match the chart), and the
+# helm-unittest suite under deploy/helm/testcampaignshooter/tests/.
+#
+# No CRD/kubeconform steps here — this chart has no CRDs.
+
+name: ci-helm
+
+on:
+  workflow_call: {}
+
+permissions:
+  contents: read
+
+env:
+  CHART_DIR: deploy/helm/testcampaignshooter
+
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Versions pinned in .mise.toml; its postinstall hook also installs
+      # the helm-unittest plugin (pinned there too).
+      - uses: jdx/mise-action@v4
+        with:
+          install_args: helm helm-docs
+      - name: Lint and render
+        run: |
+          helm lint "$CHART_DIR"
+          helm template testcampaignshooter "$CHART_DIR" > /dev/null
+      - name: helm-docs drift check
+        run: |
+          (cd "$CHART_DIR" && helm-docs --sort-values-order file)
+          git diff --exit-code "$CHART_DIR/README.md" \
+            || { echo "FATAL $CHART_DIR/README.md is stale — run 'helm-docs --sort-values-order file' in $CHART_DIR and commit the result"; exit 1; }
+      - name: helm unittest
+        run: helm unittest "$CHART_DIR"

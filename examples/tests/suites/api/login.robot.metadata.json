@@ -1,0 +1,15 @@
+{
+  "id": "api/login",
+  "name": "Login API suite",
+  "engine": "robotframework",
+  "execution": {
+    "timeoutSeconds": 300
+  },
+  "tags": ["api", "nightly", "smoke"],
+  "team": "identity",
+  "criticality": 3,
+  "category": "api",
+  "environments": ["staging"],
+  "owner": "bob@example.com",
+  "flaky": false
+}

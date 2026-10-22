@@ -1,0 +1,12 @@
+{
+  "all": [
+    { "prop": "tags", "op": "contains", "value": "smoke" },
+    {
+      "any": [
+        { "prop": "team", "op": "eq", "value": "payments" },
+        { "prop": "criticality", "op": "gte", "value": 3 }
+      ]
+    },
+    { "not": { "prop": "flaky", "op": "eq", "value": true } }
+  ]
+}

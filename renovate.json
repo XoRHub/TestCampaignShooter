@@ -1,0 +1,49 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["gitlab>cluster-mono-repo/devops/renovate-runner"],
+  "timezone": "Europe/Paris",
+  "schedule": ["before 6am on monday"],
+  "dependencyDashboard": true,
+  "automerge": false,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+  "postUpdateOptions": ["pnpmDedupe"],
+  "packageRules": [
+    {
+      "description": "Group pnpm workspace dependency bumps (minor/patch) into one PR; majors stay individual for review.",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "pnpm monorepo dependencies"
+    },
+    {
+      "description": "GitHub Actions: group, and auto-merge digest-only bumps (an already-pinned SHA moving to a newer SHA of the same tag is safe); version-tag bumps still need review.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    },
+    {
+      "description": "Digest bumps of already-pinned GitHub Actions are inert (no behavior change) and safe to auto-merge.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["digest"],
+      "automerge": true
+    },
+    {
+      "description": "Docker base images (Dockerfiles + docker-compose dev env): grouped, digest-pinned, never auto-merged (can break apt-get pins / runtime behavior).",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "groupName": "docker base images",
+      "automerge": false
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Helm values.yaml doesn't use a Chart.yaml dependencies: block — postgresql.image/minio.image are hand-templated strings Renovate's built-in helm managers don't scan.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^deploy/helm/testcampaignshooter/values\\.yaml$/"],
+      "matchStrings": [
+        "image:[ \\t]*['\"]?(?<depName>[^:'\"\\s]+):(?<currentValue>[^'\"\\s]+)['\"]?[ \\t]*\\n"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ]
+}

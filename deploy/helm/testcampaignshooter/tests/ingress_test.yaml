@@ -1,0 +1,65 @@
+suite: ingress toggle and routing
+templates:
+  - ingress.yaml
+tests:
+  - it: renders nothing by default (ingress.enabled=false)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders the ingress with SSE-friendly annotations and routed paths when enabled
+    set:
+      ingress.enabled: true
+      ingress.className: nginx
+      ingress.host: tcs.example.com
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: tcs.example.com
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"]
+          value: '3600'
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-buffering"]
+          value: 'off'
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /api
+      - equal:
+          path: spec.rules[0].http.paths[0].pathType
+          value: Prefix
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: RELEASE-NAME-server
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 4000
+      - equal:
+          path: spec.rules[0].http.paths[1].path
+          value: /metrics
+      - equal:
+          path: spec.rules[0].http.paths[1].pathType
+          value: Exact
+      - equal:
+          path: spec.rules[0].http.paths[1].backend.service.name
+          value: RELEASE-NAME-server
+      - equal:
+          path: spec.rules[0].http.paths[2].path
+          value: /
+      - equal:
+          path: spec.rules[0].http.paths[2].pathType
+          value: Prefix
+      - equal:
+          path: spec.rules[0].http.paths[2].backend.service.name
+          value: RELEASE-NAME-portal
+      - equal:
+          path: spec.rules[0].http.paths[2].backend.service.port.number
+          value: 3000

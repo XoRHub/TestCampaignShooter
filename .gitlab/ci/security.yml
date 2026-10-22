@@ -1,0 +1,19 @@
+# Blocking security gates — mirrors .github/workflows/ci-security.yml.
+# Unconditional on every pipeline (no `rules:changes:`): a gate that can be
+# skipped by touching the "right" files is not a gate.
+
+trivy-fs:
+  stage: quality
+  image:
+    name: aquasec/trivy:0.72.0
+    entrypoint: ['']
+  script:
+    - trivy fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 .
+
+hadolint:
+  stage: quality
+  image:
+    name: hadolint/hadolint:v2.12.0-alpine
+    entrypoint: ['']
+  script:
+    - hadolint --config .hadolint.yaml apps/server/Dockerfile apps/portal/Dockerfile

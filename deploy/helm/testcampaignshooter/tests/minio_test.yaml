@@ -1,0 +1,85 @@
+suite: dev-grade MinIO dependency toggle
+templates:
+  - dependencies.yaml
+tests:
+  - it: renders StatefulSet + Service when minio.enabled (default)
+    set:
+      postgresql.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: kind
+          value: StatefulSet
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-minio
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: minio/minio:latest
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MINIO_ROOT_USER
+            value: tcs
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MINIO_ROOT_PASSWORD
+            value: tcs-secret
+        documentIndex: 0
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 10Gi
+        documentIndex: 0
+      - equal:
+          path: kind
+          value: Service
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-minio
+        documentIndex: 1
+      - equal:
+          path: spec.ports[0].name
+          value: api
+        documentIndex: 1
+      - equal:
+          path: spec.ports[0].port
+          value: 9000
+        documentIndex: 1
+      - equal:
+          path: spec.ports[1].name
+          value: console
+        documentIndex: 1
+      - equal:
+          path: spec.ports[1].port
+          value: 9001
+        documentIndex: 1
+
+  - it: renders nothing when minio.enabled=false
+    set:
+      postgresql.enabled: false
+      minio.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: honors a custom storage size and image override
+    set:
+      postgresql.enabled: false
+      minio.image: minio/minio:RELEASE.2026-01-01T00-00-00Z
+      minio.storage: 50Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: minio/minio:RELEASE.2026-01-01T00-00-00Z
+        documentIndex: 0
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 50Gi
+        documentIndex: 0

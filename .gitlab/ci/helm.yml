@@ -1,0 +1,32 @@
+# Helm chart gates — mirrors .github/workflows/ci-helm.yml: lint + render
+# smoke test, a helm-docs drift check, and the helm-unittest suite under
+# deploy/helm/testcampaignshooter/tests/. Tool versions come from
+# .mise.toml (single source of truth with local dev) — no CRD/kubeconform
+# steps here, this chart has none.
+
+helm:
+  stage: quality
+  image: debian:bookworm-slim
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - 'deploy/helm/testcampaignshooter/**/*'
+        - '.gitlab-ci.yml'
+        - '.gitlab/ci/*.yml'
+        - '.mise.toml'
+  variables:
+    CHART_DIR: deploy/helm/testcampaignshooter
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends curl ca-certificates git && rm -rf /var/lib/apt/lists/*
+    - curl --retry 3 --retry-all-errors --retry-delay 3 https://mise.run | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - mise install helm helm-docs
+  script:
+    - mise exec -- helm lint "$CHART_DIR"
+    - mise exec -- helm template testcampaignshooter "$CHART_DIR" > /dev/null
+    - (cd "$CHART_DIR" && mise exec -- helm-docs --sort-values-order file)
+    - >
+      git diff --exit-code "$CHART_DIR/README.md" ||
+      { echo "FATAL $CHART_DIR/README.md is stale — run 'helm-docs --sort-values-order file' in $CHART_DIR and commit the result"; exit 1; }
+    - mise exec -- helm unittest "$CHART_DIR"

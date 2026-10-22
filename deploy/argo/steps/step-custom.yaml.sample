@@ -1,0 +1,39 @@
+# Example hand-written engine step. To activate: copy to step-<engine>.yaml
+# (e.g. step-k6.yaml) — the engine id must match the metadata "engine" field
+# and an application adapter must be registered for it (see docs/technical.md).
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tcs-step-k6
+  labels:
+    app.kubernetes.io/part-of: testcampaignshooter
+    testcampaignshooter.io/engine: k6
+spec:
+  templates:
+    - name: run-test
+      inputs:
+        parameters:
+          - name: test-id
+          - name: test-file
+          - name: image
+          - name: command
+          - name: junit-path
+          - name: timeout-seconds
+            value: '1800'
+        artifacts:
+          - name: source
+            path: /workspace
+      activeDeadlineSeconds: '{{inputs.parameters.timeout-seconds}}'
+      container:
+        image: '{{inputs.parameters.image}}'
+        workingDir: /workspace
+        command: [/bin/sh, -c]
+        args: ['{{inputs.parameters.command}}']
+      outputs:
+        artifacts:
+          - name: junit
+            path: '/workspace/{{inputs.parameters.junit-path}}'
+            optional: true
+            archive: { none: {} }
+            s3:
+              key: '{{workflow.parameters.artifact-prefix}}/partials/{{inputs.parameters.test-id}}.xml'

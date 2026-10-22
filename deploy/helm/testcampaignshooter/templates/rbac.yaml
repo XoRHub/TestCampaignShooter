@@ -1,0 +1,71 @@
+# ServiceAccount + RBAC letting the server drive Argo Workflows and read pod
+# logs, and letting workflow pods run under a dedicated account.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.argo.serviceAccount }}
+  namespace: {{ .Values.argo.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: testcampaignshooter-orchestrator
+  namespace: {{ .Values.argo.namespace }}
+rules:
+  - apiGroups: ['argoproj.io']
+    resources: ['workflows', 'workflowtemplates']
+    verbs: ['create', 'get', 'list', 'watch', 'update', 'patch', 'delete']
+  - apiGroups: ['']
+    resources: ['pods', 'pods/log']
+    verbs: ['get', 'list', 'watch']
+  - apiGroups: ['']
+    resources: ['secrets']
+    verbs: ['get']
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: testcampaignshooter-orchestrator
+  namespace: {{ .Values.argo.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: testcampaignshooter-orchestrator
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.argo.serviceAccount }}
+    namespace: {{ .Values.argo.namespace }}
+  - kind: ServiceAccount
+    name: testcampaignshooter-server
+    namespace: {{ .Release.Namespace }}
+---
+# Workflow pods need the standard Argo executor permissions.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: testcampaignshooter-workflow
+  namespace: {{ .Values.argo.namespace }}
+rules:
+  - apiGroups: ['argoproj.io']
+    resources: ['workflowtaskresults']
+    verbs: ['create', 'patch']
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: testcampaignshooter-workflow
+  namespace: {{ .Values.argo.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: testcampaignshooter-workflow
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.argo.serviceAccount }}
+    namespace: {{ .Values.argo.namespace }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: testcampaignshooter-server
+  namespace: {{ .Release.Namespace }}

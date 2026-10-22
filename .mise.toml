@@ -1,0 +1,19 @@
+# Local toolchain pins so `mise install` reproduces exactly what CI uses
+# (jdx/mise-action reads this same file in ci-helm.yml). Actions/tool
+# versions are kept up to date by Renovate (renovate.json).
+
+[tools]
+# Matches node:22-slim in apps/server/Dockerfile and apps/portal/Dockerfile.
+# Root package.json keeps engines.node >=20 (a floor, not a pin).
+node = "22.17.0"
+# MUST match package.json's "packageManager" field exactly.
+pnpm = "10.34.4"
+# Matches the chart's Chart.yaml apiVersion v2 / Helm 3 requirement.
+helm = "3.16.4"
+helm-docs = "1.14.2"
+trivy = "0.72.0"
+
+[hooks]
+# helm-unittest ships as a Helm *plugin*, not an installable mise
+# tool/backend — wire it in idempotently after `helm` itself is available.
+postinstall = "helm plugin list | grep -q unittest || helm plugin install https://github.com/helm-unittest/helm-unittest --version v0.8.2"

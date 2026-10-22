@@ -1,0 +1,83 @@
+suite: dev-grade PostgreSQL dependency toggle
+templates:
+  - dependencies.yaml
+tests:
+  - it: renders StatefulSet + Service when postgresql.enabled (default)
+    set:
+      minio.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: kind
+          value: StatefulSet
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-postgresql
+        documentIndex: 0
+      - equal:
+          path: spec.serviceName
+          value: RELEASE-NAME-postgresql
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: postgres:16-alpine
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_DB
+            value: tcs
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_USER
+            value: tcs
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_PASSWORD
+            value: tcs
+        documentIndex: 0
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 5Gi
+        documentIndex: 0
+      - equal:
+          path: kind
+          value: Service
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-postgresql
+        documentIndex: 1
+      - equal:
+          path: spec.ports[0].port
+          value: 5432
+        documentIndex: 1
+
+  - it: renders nothing when postgresql.enabled=false
+    set:
+      postgresql.enabled: false
+      minio.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: honors a custom storage size and image override
+    set:
+      minio.enabled: false
+      postgresql.image: postgres:17-alpine
+      postgresql.storage: 20Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: postgres:17-alpine
+        documentIndex: 0
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 20Gi
+        documentIndex: 0

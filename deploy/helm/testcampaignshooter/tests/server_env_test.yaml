@@ -1,0 +1,85 @@
+suite: server Deployment env rendering
+templates:
+  - server.yaml
+tests:
+  - it: renders the fixed env vars, the server.env map, and omits ARGO_GIT_SECRET_NAME by default
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - name: PORT
+              value: '4000'
+            - name: PUBLIC_BASE_URL
+              value: http://testcampaignshooter-server:4000
+            - name: LOG_LEVEL
+              value: info
+            - name: K8S_NAMESPACE
+              value: argo
+            - name: ARGO_SERVICE_ACCOUNT
+              value: testcampaignshooter
+            - name: ARGO_SERVER_URL
+              value: http://argo-server.argo.svc:2746
+            - name: ARGO_ARTIFACT_PREFIX
+              value: tcs-runs
+            - name: AUTH_OIDC_ENABLED
+              value: 'false'
+            - name: AUTH_PASSWORD_ENABLED
+              value: 'true'
+            - name: BUSINESS_METRICS_ENABLED
+              value: 'false'
+            - name: DEFAULT_PARALLELISM
+              value: '5'
+            - name: OIDC_CLIENT_ID
+              value: ''
+            - name: OIDC_ISSUER
+              value: ''
+            - name: OIDC_SCOPES
+              value: openid profile email
+            - name: ORCHESTRATION_PROVIDER
+              value: argo
+            - name: PUSHGATEWAY_URL
+              value: ''
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].secretRef.name
+          value: testcampaignshooter-server
+
+  - it: adds ARGO_GIT_SECRET_NAME right after ARGO_ARTIFACT_PREFIX when argo.gitSecretName is set
+    documentIndex: 0
+    set:
+      argo.gitSecretName: git-creds
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[7].name
+          value: ARGO_GIT_SECRET_NAME
+      - equal:
+          path: spec.template.spec.containers[0].env[7].value
+          value: git-creds
+      - equal:
+          path: spec.template.spec.containers[0].env[6].name
+          value: ARGO_ARTIFACT_PREFIX
+      - equal:
+          path: spec.template.spec.containers[0].env[8].name
+          value: AUTH_OIDC_ENABLED
+
+  - it: honors an overridden existingSecret name
+    documentIndex: 0
+    set:
+      server.existingSecret: my-custom-secret
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].secretRef.name
+          value: my-custom-secret
+
+  - it: exposes the server Service on the configured port
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: kind
+          value: Service
+      - equal:
+          path: spec.ports[0].port
+          value: 4000
+      - equal:
+          path: spec.ports[0].targetPort
+          value: 4000

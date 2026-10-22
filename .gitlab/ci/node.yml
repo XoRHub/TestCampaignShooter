@@ -1,0 +1,101 @@
+# Node/pnpm gates — mirrors .github/workflows/ci-node.yml. `quality` is
+# lint/typecheck/test/build; `codegen` is the Prisma migration-drift gate
+# (replays every committed migration into an ephemeral shadow database and
+# fails if the result diverges from schema.prisma — see
+# apps/server/prisma/migrations/, docs/adapter-plugins.md §10).
+
+.node_rules: &node_rules
+  - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    changes:
+      - 'apps/**/*'
+      - 'packages/**/*'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.base.json'
+      - 'eslint.config.js'
+      - 'vitest.config.ts'
+      - '.gitlab-ci.yml'
+      - '.gitlab/ci/*.yml'
+
+.pnpm_setup:
+  image: node:22-slim
+  before_script:
+    - corepack enable
+    - pnpm config set store-dir .pnpm-store
+  cache:
+    key:
+      files: [pnpm-lock.yaml]
+    paths:
+      - .pnpm-store
+
+quality:
+  extends: .pnpm_setup
+  stage: quality
+  rules: *node_rules
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm lint
+    - pnpm typecheck
+    - pnpm test
+    - pnpm build
+  artifacts:
+    when: always
+    reports:
+      junit: junit-report.xml
+
+codegen:
+  extends: .pnpm_setup
+  stage: quality
+  rules: *node_rules
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+  variables:
+    POSTGRES_USER: tcs
+    POSTGRES_PASSWORD: tcs
+    # Used only as the shadow-DB target below; never queried as an "app"
+    # database in this job, so a single database is enough.
+    POSTGRES_DB: tcs_shadow
+    DATABASE_URL: postgresql://tcs:tcs@postgres:5432/tcs_shadow
+    SHADOW_DATABASE_URL: postgresql://tcs:tcs@postgres:5432/tcs_shadow
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends postgresql-client && rm -rf /var/lib/apt/lists/*
+    - until pg_isready -h postgres -U tcs; do sleep 1; done
+    - pnpm install --frozen-lockfile --filter @tcs/server...
+    - pnpm --filter @tcs/server exec prisma validate
+    - >
+      cd apps/server && pnpm exec prisma migrate diff
+      --from-migrations ./prisma/migrations
+      --to-schema-datamodel ./prisma/schema.prisma
+      --shadow-database-url "$SHADOW_DATABASE_URL"
+      --exit-code
+
+# Route-level tests against a real Postgres (vitest.integration.config.ts,
+# apps/server/test/) — CRUD + RBAC/project-access behavior end to end via
+# Fastify's `.inject()`, as opposed to `quality`'s pure-logic unit tests.
+# No MinIO service here: the current suite doesn't exercise the artifact
+# store, and the app's best-effort `ensureBucket()` onReady hook just warns
+# and moves on when S3 is unreachable — add one if a future test needs it.
+test-integration:
+  extends: .pnpm_setup
+  stage: quality
+  rules: *node_rules
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+  variables:
+    POSTGRES_USER: tcs
+    POSTGRES_PASSWORD: tcs
+    POSTGRES_DB: tcs_test
+    DATABASE_URL: postgresql://tcs:tcs@postgres:5432/tcs_test
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends postgresql-client && rm -rf /var/lib/apt/lists/*
+    - until pg_isready -h postgres -U tcs; do sleep 1; done
+    - pnpm install --frozen-lockfile
+    - pnpm test:integration
+  artifacts:
+    when: always
+    reports:
+      junit: junit-report-integration.xml

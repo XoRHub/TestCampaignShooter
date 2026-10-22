@@ -1,0 +1,6 @@
+{
+  "all": [
+    { "pathUnder": "suites/unit" },
+    { "prop": "engine", "op": "eq", "value": "generic-node" }
+  ]
+}

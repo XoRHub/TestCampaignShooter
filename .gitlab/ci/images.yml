@@ -1,0 +1,178 @@
+# Image builds — Kaniko instead of docker buildx + a docker:dind service.
+# This project's GitLab Runner fleet is Raspberry Pi (arm64) hardware
+# running without privileged containers, and Docker-in-Docker needs
+# `--privileged` to run its own nested daemon (mount overlayfs, set up
+# iptables, ...) — it can't start at all here (see the runner's own
+# startup logs: "mount: permission denied (are you root?)"). Kaniko builds
+# a Dockerfile straight from a build context and pushes to a registry with
+# no daemon involved, so it runs fine as an unprivileged container.
+#
+# Trade-off: arm64 only, no manifest-list/multi-arch image here. Emulating
+# amd64 (QEMU via binfmt_misc) is *also* a privileged, kernel-level
+# operation — out of reach on this hardware regardless of which tool
+# builds the image. GitHub Actions (.github/workflows/ci-images.yml)
+# remains the amd64+arm64 pipeline; this one only ever produces arm64
+# images. If a genuinely privileged (or x86) runner is ever added to this
+# project's fleet, reintroduce a build matrix + `docker buildx imagetools
+# create` to assemble a real multi-arch manifest (see git history for the
+# previous dind-based version of this file).
+
+.kaniko_build:
+  image:
+    name: gcr.io/kaniko-project/executor:v1.24.0-debug
+    entrypoint: ['']
+  before_script:
+    # Belt-and-suspenders on top of .dockerignore: this runner reuses its
+    # working directory across pipeline runs ("Reinitialized existing Git
+    # repository" in the checkout step, not a fresh clone), and Kaniko has
+    # known bugs interpreting .dockerignore glob patterns — don't rely on
+    # it alone to keep a node_modules left over from an earlier job (e.g.
+    # `quality`, which installs the *whole* workspace including root
+    # devDependencies) out of the build context. Delete it outright.
+    - rm -rf node_modules apps/*/node_modules packages/*/node_modules
+    - mkdir -p /kaniko/.docker
+    - >
+      echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "$CI_REGISTRY_USER" "$CI_REGISTRY_PASSWORD" | base64 | tr -d '\n')\"}}}"
+      > /kaniko/.docker/config.json
+
+build-server:
+  extends: .kaniko_build
+  stage: build
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      variables:
+        KANIKO_ARGS: ''
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - 'apps/server/**/*'
+        - 'packages/**/*'
+        - 'package.json'
+        - 'pnpm-lock.yaml'
+        - 'pnpm-workspace.yaml'
+      variables:
+        KANIKO_ARGS: '--no-push'
+  script:
+    # --tar-path requires --destination even when --no-push is set (Kaniko
+    # still needs a ref to compute the image against) — it just skips the
+    # actual push. No `--cache`: a Kaniko registry cache served a stale
+    # `RUN pnpm install` layer across several rebuilds with genuinely
+    # different pnpm-lock.yaml content (root-caused via a security-scan
+    # false-negative — see commit history) — not worth the speed-up on a
+    # low-frequency Pi runner until that's understood.
+    - >
+      /kaniko/executor
+      --context "dir://${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/apps/server/Dockerfile"
+      --destination "${IMAGE_SERVER}:${CI_COMMIT_SHORT_SHA}"
+      --tar-path server-image.tar
+      $KANIKO_ARGS
+  artifacts:
+    paths: ['server-image.tar']
+    expire_in: 1 day
+
+build-portal:
+  extends: .kaniko_build
+  stage: build
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      variables:
+        KANIKO_ARGS: ''
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - 'apps/portal/**/*'
+        - 'packages/shared-types/**/*'
+        - 'package.json'
+        - 'pnpm-lock.yaml'
+        - 'pnpm-workspace.yaml'
+      variables:
+        KANIKO_ARGS: '--no-push'
+  script:
+    - >
+      /kaniko/executor
+      --context "dir://${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/apps/portal/Dockerfile"
+      --destination "${IMAGE_PORTAL}:${CI_COMMIT_SHORT_SHA}"
+      --tar-path portal-image.tar
+      $KANIKO_ARGS
+  artifacts:
+    paths: ['portal-image.tar']
+    expire_in: 1 day
+
+# Scans the tarball Kaniko just produced (works identically for an MR's
+# --no-push build and main's pushed-and-tarballed one — no registry pull
+# needed either way) — blocking vuln/secret gate plus the CycloneDX SBOM
+# later attached to the GitLab Release. No `rules:` needed: a job whose
+# `needs:` points at a skipped job (path filter didn't match on an MR) is
+# itself skipped automatically.
+scan-server:
+  stage: scan
+  image:
+    name: aquasec/trivy:0.72.0
+    entrypoint: ['']
+  needs: ['build-server']
+  script:
+    - trivy image --input server-image.tar --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
+    - trivy image --input server-image.tar --format cyclonedx --output sbom-server.cdx.json
+  artifacts:
+    paths: ['sbom-server.cdx.json']
+    expire_in: 90 days
+
+scan-portal:
+  stage: scan
+  image:
+    name: aquasec/trivy:0.72.0
+    entrypoint: ['']
+  needs: ['build-portal']
+  script:
+    - trivy image --input portal-image.tar --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
+    - trivy image --input portal-image.tar --format cyclonedx --output sbom-portal.cdx.json
+  artifacts:
+    paths: ['sbom-portal.cdx.json']
+    expire_in: 90 days
+
+# `edge`: convenience moving tag for dev/manual pulls, never a deploy
+# reference. `latest` only ever points at the newest OFFICIAL release
+# (see .gitlab/ci/release.yml). crane is daemonless (no docker needed,
+# unlike the old `docker buildx imagetools create` this replaces) — same
+# tool the release job already uses to promote images.
+.crane_setup: &crane_setup
+  - apk add --no-cache curl
+  - |
+    case "$(uname -m)" in
+      x86_64) CRANE_ARCH=x86_64 ;;
+      aarch64) CRANE_ARCH=arm64 ;;
+      armv7l|armv6l) CRANE_ARCH=armv6 ;;
+      *) echo "unsupported arch $(uname -m)" >&2; exit 1 ;;
+    esac
+  # Download to a real file rather than piping straight into `tar -xz`:
+  # Alpine's tar is BusyBox's, which doesn't reliably decompress gzip read
+  # from a pipe ("tar: invalid magic" / "short read") the way GNU tar does.
+  # --retry: this runner's network has shown transient DNS/connect blips
+  # (e.g. curl exit 6, "Couldn't resolve host") on external downloads.
+  - curl -sfL --retry 3 --retry-all-errors --retry-delay 3 -o /tmp/crane.tar.gz "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_${CRANE_ARCH}.tar.gz"
+  - tar -xzf /tmp/crane.tar.gz -C /usr/local/bin crane
+  - crane auth login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+
+tag-edge-server:
+  stage: scan
+  image: alpine:3.21
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  needs: ['scan-server']
+  variables:
+    CRANE_VERSION: '0.20.2'
+  script:
+    - *crane_setup
+    - crane tag "${IMAGE_SERVER}:${CI_COMMIT_SHORT_SHA}" edge
+
+tag-edge-portal:
+  stage: scan
+  image: alpine:3.21
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  needs: ['scan-portal']
+  variables:
+    CRANE_VERSION: '0.20.2'
+  script:
+    - *crane_setup
+    - crane tag "${IMAGE_PORTAL}:${CI_COMMIT_SHORT_SHA}" edge

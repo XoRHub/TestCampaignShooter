@@ -1,0 +1,15 @@
+# Patch for the Argo workflow-controller configmap: store workflow artifacts
+# (source tree, partial + aggregated JUnit reports) in the dev MinIO.
+data:
+  artifactRepository: |
+    archiveLogs: true
+    s3:
+      endpoint: tcs-minio.tcs.svc:9000
+      bucket: tcs-artifacts
+      insecure: true
+      accessKeySecret:
+        name: tcs-minio-creds
+        key: accessKey
+      secretKeySecret:
+        name: tcs-minio-creds
+        key: secretKey

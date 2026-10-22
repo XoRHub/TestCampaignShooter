@@ -1,0 +1,62 @@
+# Container registry for the test-engine images is configured per metadata;
+# these images are the platform itself.
+image:
+  registry: ghcr.io/OWNER/testcampaignshooter
+  tag: latest
+  pullPolicy: IfNotPresent
+
+server:
+  replicas: 1
+  port: 4000
+  publicBaseUrl: http://testcampaignshooter-server:4000
+  logLevel: info
+  env:
+    ORCHESTRATION_PROVIDER: argo
+    DEFAULT_PARALLELISM: '5'
+    AUTH_PASSWORD_ENABLED: 'true'
+    AUTH_OIDC_ENABLED: 'false'
+    OIDC_ISSUER: ''
+    OIDC_CLIENT_ID: ''
+    OIDC_SCOPES: openid profile email
+    BUSINESS_METRICS_ENABLED: 'false'
+    PUSHGATEWAY_URL: ''
+  # Secret holding SESSION_SECRET, DATABASE_URL, S3_*, OIDC_CLIENT_SECRET, ADMIN_*
+  existingSecret: testcampaignshooter-server
+
+portal:
+  replicas: 1
+  port: 3000
+  # Public URL of the API as seen from browsers (baked at image build time via
+  # NEXT_PUBLIC_API_URL; override the image or use an ingress rewrite).
+
+argo:
+  namespace: argo
+  serviceAccount: testcampaignshooter
+  # Argo Server API — required for targeted retry
+  serverUrl: http://argo-server.argo.svc:2746
+  artifactPrefix: tcs-runs
+  # Secret (key "token") used by fetch-source for private git repos
+  gitSecretName: ''
+
+# Dev-grade in-cluster dependencies. Disable and point DATABASE_URL/S3_* at
+# managed services in production.
+postgresql:
+  enabled: true
+  image: postgres:16-alpine
+  database: tcs
+  username: tcs
+  password: tcs
+  storage: 5Gi
+
+minio:
+  enabled: true
+  image: minio/minio:latest
+  rootUser: tcs
+  rootPassword: tcs-secret
+  bucket: tcs-artifacts
+  storage: 10Gi
+
+ingress:
+  enabled: false
+  className: nginx
+  host: tcs.example.com
