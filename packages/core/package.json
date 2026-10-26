@@ -12,10 +12,10 @@
   },
   "dependencies": {
     "@tcs/shared-types": "workspace:*",
-    "adm-zip": "^0.6.0",
+    "adm-zip": "^0.6.1",
     "fast-glob": "^3.3.3",
     "fast-xml-parser": "^4.5.0",
-    "simple-git": "^3.28.0",
+    "simple-git": "^4.0.2",
     "yaml": "^2.8.0",
     "zod": "^3.25.0"
   },
