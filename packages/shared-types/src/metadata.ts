@@ -14,7 +14,7 @@ export const executionSpecSchema = z
     /** Path (relative to the working dir) where the engine writes its JUnit XML report. */
     junitPath: z.string().min(1).optional(),
     timeoutSeconds: z.number().int().positive().max(86_400).optional(),
-    env: z.record(z.string()).optional(),
+    env: z.record(z.string(), z.string()).optional(),
     resources: z
       .object({
         cpu: z.string().min(1).optional(),

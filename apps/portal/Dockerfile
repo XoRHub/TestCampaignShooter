@@ -14,6 +14,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm --filter @tcs/portal build
 
 FROM node:22-slim AS runtime
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 # The base image's global npm install is never used at runtime (the
 # standalone server.js is run directly), but bundles its own vendored
 # tar/sigstore/brace-expansion/picomatch — periodically behind and flagged

@@ -19,12 +19,12 @@ const configSchema = z.object({
   DEFAULT_PARALLELISM: z.coerce.number().int().positive().default(5),
 
   /** Automatic scheduled campaign launches. Keep enabled on ONE replica only. */
-  SCHEDULER_ENABLED: boolean.default('true'),
+  SCHEDULER_ENABLED: boolean.default(true),
   /** IANA timezone applied to cron expressions (defaults to the server's). */
   SCHEDULER_TIMEZONE: z.string().optional(),
 
-  AUTH_PASSWORD_ENABLED: boolean.default('true'),
-  AUTH_OIDC_ENABLED: boolean.default('false'),
+  AUTH_PASSWORD_ENABLED: boolean.default(true),
+  AUTH_OIDC_ENABLED: boolean.default(false),
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
   SESSION_TTL_HOURS: z.coerce.number().positive().default(12),
   ADMIN_EMAIL: z.string().email().optional(),
@@ -41,9 +41,9 @@ const configSchema = z.object({
   S3_ACCESS_KEY: z.string().optional(),
   S3_SECRET_KEY: z.string().optional(),
   S3_BUCKET: z.string().default('tcs-artifacts'),
-  S3_FORCE_PATH_STYLE: boolean.default('true'),
+  S3_FORCE_PATH_STYLE: boolean.default(true),
 
-  BUSINESS_METRICS_ENABLED: boolean.default('false'),
+  BUSINESS_METRICS_ENABLED: boolean.default(false),
   PUSHGATEWAY_URL: z.string().optional(),
   BUSINESS_METRICS_JOB: z.string().default('tcs-campaigns'),
   PUSHGATEWAY_USERNAME: z.string().optional(),

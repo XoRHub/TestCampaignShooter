@@ -31,7 +31,7 @@
     "openid-client": "^6.8.0",
     "prom-client": "^15.1.0",
     "tsx": "^4.20.0",
-    "zod": "^3.25.0"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
