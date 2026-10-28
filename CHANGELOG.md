@@ -1,3 +1,20 @@
+# Changelog
+
+## [0.2.0](https://github.com/XoRHub/TestCampaignShooter/compare/testcampaignshooter-v0.1.0...testcampaignshooter-v0.2.0) (2026-10-28)
+
+
+### Features
+
+* **TCS:** beginning of project on Github ([f846781](https://github.com/XoRHub/TestCampaignShooter/commit/f8467813a52fbda60213ad8c6735131abb49a3b3))
+
+
+### Bug Fixes
+
+* **ci:** restore contents:read permission on the changes job ([fa01196](https://github.com/XoRHub/TestCampaignShooter/commit/fa011965850633eda34748878878a3d80ca2c531))
+* **deps:** bump vulnerable dependencies to close the trivy fs gate ([07cc623](https://github.com/XoRHub/TestCampaignShooter/commit/07cc623d6d3bfdd1d3b84f6fd934868d35d126b3))
+* **deps:** close remaining trivy gates (OS patches, dev-tool pruning, zod v4) ([b6c212a](https://github.com/XoRHub/TestCampaignShooter/commit/b6c212a91ae8b714417bf5e98deee11c97b12187))
+* **trivy:** change version of trivy ([7d071ad](https://github.com/XoRHub/TestCampaignShooter/commit/7d071add0ffd608fb16c5d2cb9b6a6a8a3500f27))
+
 ## [1.0.1](https://gitlab.com/cluster-mono-repo/test-ai/test-fable-tcs/compare/v1.0.0...v1.0.1) (2026-08-12)
 
 
@@ -6,7 +23,7 @@
 * **ci,docs:** regenerate stale Helm README, auto-regen on future releases ([d500c38](https://gitlab.com/cluster-mono-repo/test-ai/test-fable-tcs/commit/d500c38740641898a5dc4fa3faebeafa2b92252b))
 * **ci:** retry external curl downloads (transient DNS failures on the Pi runner) ([5950d9c](https://gitlab.com/cluster-mono-repo/test-ai/test-fable-tcs/commit/5950d9c4829fe6d470f55a18bbfbb0fdc0f26f58))
 
-# 1.0.0 (2026-08-11)
+## 1.0.0 (2026-08-11)
 
 
 ### Bug Fixes
